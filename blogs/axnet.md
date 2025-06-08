@@ -97,59 +97,45 @@ TcpSocket 提供了面向连接的可靠数据传输服务。
 
 ETH0,网络设备
 
-确保独有访问后写入申请到的地址端口（unsafe里的）
+SOCKET获取套接字可变引用后调用smoltcp的connect尝试链接，最后写入申请到的地址端口进套接字（unsafe里的）
 
 ```rust
-/// Connects to the given address and port.
-    ///
-    /// The local port is generated automatically.
-    pub fn connect(&self, remote_addr: SocketAddr) -> AxResult {
-        self.update_state(STATE_CLOSED, STATE_CONNECTING, || {
-            /*
-            ...
-             */
-            let bound_endpoint = self.bound_endpoint()?;
-            let iface = &ETH0.iface;
-            let (local_endpoint, remote_endpoint) = SOCKET_SET
-                .with_socket_mut::<tcp::Socket, _, _>(handle, |socket| {
-                    socket
-                        .connect(iface.lock().context(), remote_endpoint, bound_endpoint)
-                        .or_else(|e| match e {
-                            ConnectError::InvalidState => {
-                                ax_err!(BadState, "socket connect() failed")
-                            }
-                            ConnectError::Unaddressable => {
-                                ax_err!(ConnectionRefused, "socket connect() failed")
-                            }
-                        })?;
-                    Ok((
-                        socket.local_endpoint().unwrap(),
-                        socket.remote_endpoint().unwrap(),
-                    ))
-                })?;
-            unsafe {
-                self.local_addr.get().write(local_endpoint);
-                self.peer_addr.get().write(remote_endpoint);
-                self.handle.get().write(Some(handle));
-            }
-            Ok(())
-        })
-        .unwrap_or_else(|_| ax_err!(AlreadyExists, "socket connect() failed: already connected"))?; // EISCONN
-        if self.is_nonblocking() {
-            Err(AxError::WouldBlock)
-        } else {
-            self.block_on(|| {
-                let PollState { writable, .. } = self.poll_connect()?;
-                if !writable {
-                    Err(AxError::WouldBlock)
-                } else if self.get_state() == STATE_CONNECTED {
-                    Ok(())
-                } else {
-                    ax_err!(ConnectionRefused, "socket connect() failed")
-                }
-            })
+pub fn connect(&self, remote_addr: SocketAddr) -> AxResult {
+    self.update_state(STATE_CLOSED, STATE_CONNECTING, || {
+        /*
+        ...
+         */
+        let bound_endpoint = self.bound_endpoint()?;
+        let iface = &ETH0.iface;
+        let (local_endpoint, remote_endpoint) = SOCKET_SET
+            .with_socket_mut::<tcp::Socket, _, _>(handle, |socket| {
+                /*
+                ...
+                 */
+            })?;
+        unsafe {
+            self.local_addr.get().write(local_endpoint);
+            self.peer_addr.get().write(remote_endpoint);
+            self.handle.get().write(Some(handle));
         }
+        Ok(())
+    })
+    .unwrap_or_else(|_| ax_err!(AlreadyExists, "socket connect() failed: already connected"))?; // EISCONN
+    if self.is_nonblocking() {
+        Err(AxError::WouldBlock)
+    } else {
+        self.block_on(|| {
+            let PollState { writable, .. } = self.poll_connect()?;
+            if !writable {
+                Err(AxError::WouldBlock)
+            } else if self.get_state() == STATE_CONNECTED {
+                Ok(())
+            } else {
+                ax_err!(ConnectionRefused, "socket connect() failed")
+            }
+        })
     }
+}
 ```
 如果套接字是非阻塞的，此方法会立即返回 Err(AxError::WouldBlock),否则会调用[block_on()](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/tcp.rs#L477)。
 block_on会根据is_nonblocking()尝试执行传入的函数（这里是那个闭包），如果设置为非阻塞直接执行，如果是阻塞会调用poll_interface,一路向内调用，执行mod.rs
@@ -172,7 +158,6 @@ pub fn poll(&self, sockets: &Mutex<SocketSet>) {
 /// This function returns a boolean value indicating whether any packets were
 /// processed or emitted, and thus, whether the readiness of any socket might
 /// have changed.
-
 ```
 poll主要是功能就是接受数据和发送数据，每次调用都会把接收队列内容全部获取，发送队列全部发送，block_on会一直不断调用poll（可能上次数据还没到接收队列里）。直到拿到想要的数据
 
@@ -189,20 +174,18 @@ listen() -> AxResult: 开始监听绑定的地址和端口上的传入连接。�
 而不会报错.目的是这种设计使得 listen() 操作变得幂等（Idempotent）。也就是说，调用一次 listen() 和调用多次 listen() 的最终结果是一样的，
 并且都不会产生“已经处于监听状态”之类的错误。
 ```rust
-    /// It's must be called after [`bind`](Self::bind) and before
-    /// [`accept`](Self::accept).
-    pub fn listen(&self) -> AxResult {
-        self.update_state(STATE_CLOSED, STATE_LISTENING, || {
-            let bound_endpoint = self.bound_endpoint()?;
-            unsafe {
-                (*self.local_addr.get()).port = bound_endpoint.port;
-            }
-            LISTEN_TABLE.listen(bound_endpoint)?;
-            debug!("TCP socket listening on {}", bound_endpoint);
-            Ok(())
-        })
-        .unwrap_or(Ok(())) // ignore simultaneous `listen`s.
-    }
+pub fn listen(&self) -> AxResult {
+    self.update_state(STATE_CLOSED, STATE_LISTENING, || {
+        let bound_endpoint = self.bound_endpoint()?;
+        unsafe {
+            (*self.local_addr.get()).port = bound_endpoint.port;
+        }
+        LISTEN_TABLE.listen(bound_endpoint)?;
+        debug!("TCP socket listening on {}", bound_endpoint);
+        Ok(())
+    })
+    .unwrap_or(Ok(())) // ignore simultaneous `listen`s.
+}
 ```
 
 [**accept() -> AxResult<TcpSocket>:**](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/tcp.rs#L225)
@@ -211,19 +194,19 @@ listen() -> AxResult: 开始监听绑定的地址和端口上的传入连接。�
 
 函数会等待直到一个新的tcp链接确立，调用block_on非阻塞监听等待。(具体过程还是一路poll，前面已说过)
 ```rust
-    pub fn accept(&self) -> AxResult<TcpSocket> {
-        if !self.is_listening() {
-            return ax_err!(InvalidInput, "socket accept() failed: not listen");
-        }
-
-        // SAFETY: `self.local_addr` should be initialized after `bind()`.
-        let local_port = unsafe { self.local_addr.get().read().port };
-        self.block_on(|| {
-            let (handle, (local_addr, peer_addr)) = LISTEN_TABLE.accept(local_port)?;
-            debug!("TCP socket accepted a new connection {}", peer_addr);
-            Ok(TcpSocket::new_connected(handle, local_addr, peer_addr))
-        })
+pub fn accept(&self) -> AxResult<TcpSocket> {
+    if !self.is_listening() {
+        return ax_err!(InvalidInput, "socket accept() failed: not listen");
     }
+
+    // SAFETY: `self.local_addr` should be initialized after `bind()`.
+    let local_port = unsafe { self.local_addr.get().read().port };
+    self.block_on(|| {
+        let (handle, (local_addr, peer_addr)) = LISTEN_TABLE.accept(local_port)?;
+        debug!("TCP socket accepted a new connection {}", peer_addr);
+        Ok(TcpSocket::new_connected(handle, local_addr, peer_addr))
+    })
+}
 ```
 如果套接字是非阻塞的且没有挂起的连接，则返回 Err(AxError::WouldBlock)。
 
@@ -247,35 +230,34 @@ listen() -> AxResult: 开始监听绑定的地址和端口上的传入连接。�
 
 关闭连接的读取、写入或两者。这会改变套接字状态并可能释放相关资源。
 ```rust
-/// Close the connection.
-    pub fn shutdown(&self) -> AxResult {
-        // stream
-        self.update_state(STATE_CONNECTED, STATE_CLOSED, || {
-            let handle = unsafe { self.handle.get().read().unwrap() };
-            SOCKET_SET.with_socket_mut::<tcp::Socket, _, _>(handle, |socket| {
-                debug!("TCP socket {}: shutting down", handle);
-                socket.close();
-            });
-            unsafe { self.local_addr.get().write(UNSPECIFIED_ENDPOINT) }; // clear bound address
-            SOCKET_SET.poll_interfaces();
-            Ok(())
-        })
-        .unwrap_or(Ok(()))?;
-
-        // listener
-        self.update_state(STATE_LISTENING, STATE_CLOSED, || {
-
-            let local_port = unsafe { self.local_addr.get().read().port };
-            unsafe { self.local_addr.get().write(UNSPECIFIED_ENDPOINT) }; // clear bound address
-            LISTEN_TABLE.unlisten(local_port);
-            SOCKET_SET.poll_interfaces();
-            Ok(())
-        })
-        .unwrap_or(Ok(()))?;
-
-        // ignore for other states
+pub fn shutdown(&self) -> AxResult {
+    // stream
+    self.update_state(STATE_CONNECTED, STATE_CLOSED, || {
+        let handle = unsafe { self.handle.get().read().unwrap() };
+        SOCKET_SET.with_socket_mut::<tcp::Socket, _, _>(handle, |socket| {
+            debug!("TCP socket {}: shutting down", handle);
+            socket.close();
+        });
+        unsafe { self.local_addr.get().write(UNSPECIFIED_ENDPOINT) }; // clear bound address
+        SOCKET_SET.poll_interfaces();
         Ok(())
-    }
+    })
+    .unwrap_or(Ok(()))?;
+
+    // listener
+    self.update_state(STATE_LISTENING, STATE_CLOSED, || {
+
+        let local_port = unsafe { self.local_addr.get().read().port };
+        unsafe { self.local_addr.get().write(UNSPECIFIED_ENDPOINT) }; // clear bound address
+        LISTEN_TABLE.unlisten(local_port);
+        SOCKET_SET.poll_interfaces();
+        Ok(())
+    })
+    .unwrap_or(Ok(()))?;
+
+    // ignore for other states
+    Ok(())
+}
 ```
 ### 非阻塞模式:
 [**is_nonblocking() -> bool:**](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/tcp.rs#L101) 
@@ -306,17 +288,17 @@ UdpSocket 提供了无连接的数据报服务。由于UDOP无状态的，所以
 ### 创建: 
 [**UdpSocket::new()**](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/udp.rs#L27)
 ```rust
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
-        let socket = SocketSetWrapper::new_udp_socket();
-        let handle = SOCKET_SET.add(socket);
-        Self {
-            handle,
-            local_addr: RwLock::new(None),
-            peer_addr: RwLock::new(None),
-            nonblock: AtomicBool::new(false),
-        }
+#[allow(clippy::new_without_default)]
+pub fn new() -> Self {
+    let socket = SocketSetWrapper::new_udp_socket();
+    let handle = SOCKET_SET.add(socket);
+    Self {
+        handle,
+        local_addr: RwLock::new(None),
+        peer_addr: RwLock::new(None),
+        nonblock: AtomicBool::new(false),
     }
+}
 ```
 创建一个新的 UDP 套接字，并将其添加到全局的 SOCKET_SET 中。
 ### 操作:
@@ -325,25 +307,25 @@ UdpSocket 提供了无连接的数据报服务。由于UDOP无状态的，所以
 将套接字绑定到本地IP地址和端口。如果端口为 0，则会自动分配一个临时端口。绑定通过SOXCKET获取套接字可变引用，最后通过smoltcp依赖的
 bind进行实际绑定。必须在 send_to 和 recv_from 之前调用。
 ```rust
-    pub fn bind(&self, mut local_addr: SocketAddr) -> AxResult {
-        let mut self_local_addr = self.local_addr.write();
-        if local_addr.port() == 0 {
-            local_addr.set_port(get_ephemeral_port()?);
-        }
-        /*
-        ...
-         */
-        SOCKET_SET.with_socket_mut::<udp::Socket, _, _>(self.handle, |socket| {
-            socket.bind(endpoint).or_else(|e| match e {
-                BindError::InvalidState => ax_err!(AlreadyExists, "socket bind() failed"),
-                BindError::Unaddressable => ax_err!(InvalidInput, "socket bind() failed"),
-            })
-        })?;
-        /*
-        ...
-         */
-        
+pub fn bind(&self, mut local_addr: SocketAddr) -> AxResult {
+    let mut self_local_addr = self.local_addr.write();
+    if local_addr.port() == 0 {
+        local_addr.set_port(get_ephemeral_port()?);
     }
+    /*
+    ...
+     */
+    SOCKET_SET.with_socket_mut::<udp::Socket, _, _>(self.handle, |socket| {
+        socket.bind(endpoint).or_else(|e| match e {
+            BindError::InvalidState => ax_err!(AlreadyExists, "socket bind() failed"),
+            BindError::Unaddressable => ax_err!(InvalidInput, "socket bind() failed"),
+        })
+    })?;
+    /*
+    ...
+     */
+    
+}
 ```
 [**connect(addr: SocketAddr) -> AxResult:**](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/udp.rs#L137)
 
