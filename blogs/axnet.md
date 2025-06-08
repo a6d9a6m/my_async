@@ -347,8 +347,9 @@ bind进行实际绑定。必须在 send_to 和 recv_from 之前调用。
 ```
 [**connect(addr: SocketAddr) -> AxResult:**](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/udp.rs#L137)
 
-将套接字“连接”到指定的远程地址。这允许之后使用 send 和 recv，并过滤只接收来自该远程地址的数据。如果未绑定，则会自动绑定到一个临时端口。必须在[`send`](Self::send)和
-[`recv`](Self::recv).之前
+将套接字“连接”到指定的远程地址。这允许之后使用 send 和 recv，并过滤只接收来自该远程地址的数据。如果未绑定，则会自动绑定到一个临时端口。必须在[`send`](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/tcp.rs#L306)
+和[`recv`](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/tcp.rs#L273).
+之前
 
 ### 数据收发:
 send_to(buf: &[u8], remote_addr: SocketAddr) -> AxResult<usize>: 将数据发送到指定的远程地址。
