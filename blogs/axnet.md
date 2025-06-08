@@ -1,5 +1,5 @@
-# axnet 模块概述
-**注意：target里面有doc文件夹，那里面是使用cargo doc生成的文件夹，是可以交互的html文件，可以一起阅读增进理解**
+# axnet
+**注：target里面有doc文件夹，那里面是使用cargo doc生成的文件夹，是可以交互的html文件，可以一起阅读增进理解**
 
 axnet 是 ArceOS 的网络模块。它为 TCP/UDP 通信提供了统一的网络原语，支持多种底层网络栈。当前，主要支持并默认使用 smoltcp 作为底层网络栈。
 
@@ -352,342 +352,191 @@ bind进行实际绑定。必须在 send_to 和 recv_from 之前调用。
 之前
 
 ### 数据收发:
-send_to(buf: &[u8], remote_addr: SocketAddr) -> AxResult<usize>: 将数据发送到指定的远程地址。
-```rust
-/// Sends data on the socket to the given address. On success, returns the
-    /// number of bytes written.
-    pub fn send_to(&self, buf: &[u8], remote_addr: SocketAddr) -> AxResult<usize> {
-        if remote_addr.port() == 0 || remote_addr.ip().is_unspecified() {
-            return ax_err!(InvalidInput, "socket send_to() failed: invalid address");
-        }
-        self.send_impl(buf, from_core_sockaddr(remote_addr))
-    }
-```
-recv_from(buf: &mut [u8]) -> AxResult<(usize, SocketAddr)>: 从套接字接收数据，并返回读取的字节数以及数据的源地址。
-```rust
-/// Receives a single datagram message on the socket. On success, returns
-    /// the number of bytes read and the origin.
-    pub fn recv_from(&self, buf: &mut [u8]) -> AxResult<(usize, SocketAddr)> {
-        self.recv_impl(|socket| match socket.recv_slice(buf) {
-            Ok((len, meta)) => Ok((len, into_core_sockaddr(meta.endpoint))),
-            Err(_) => ax_err!(BadState, "socket recv_from() failed"),
-        })
-    }
-```
-peek_from(buf: &mut [u8]) -> AxResult<(usize, SocketAddr)>: 类似 recv_from，但数据不会从接收队列中移除。
-```rust
-/// Receives a single datagram message on the socket, without removing it from
-    /// the queue. On success, returns the number of bytes read and the origin.
-    pub fn peek_from(&self, buf: &mut [u8]) -> AxResult<(usize, SocketAddr)> {
-        self.recv_impl(|socket| match socket.peek_slice(buf) {
-            Ok((len, meta)) => Ok((len, into_core_sockaddr(meta.endpoint))),
-            Err(_) => ax_err!(BadState, "socket recv_from() failed"),
-        })
-    }
-```
-send(buf: &[u8]) -> AxResult<usize>: 将数据发送到先前 connect 指定的远程地址。
-```rust
-/// Sends data on the socket to the remote address to which it is connected.
-    pub fn send(&self, buf: &[u8]) -> AxResult<usize> {
-        let remote_endpoint = self.remote_endpoint()?;
-        self.send_impl(buf, remote_endpoint)
-    }
-```
-recv(buf: &mut [u8]) -> AxResult<usize>: 从先前 connect 指定的远程地址接收数据。
-```rust
-/// Receives a single datagram message on the socket from the remote address
-    /// to which it is connected. On success, returns the number of bytes read.
-    pub fn recv(&self, buf: &mut [u8]) -> AxResult<usize> {
-        let remote_endpoint = self.remote_endpoint()?;
-        self.recv_impl(|socket| {
-            let (len, meta) = socket
-                .recv_slice(buf)
-                .map_err(|_| ax_err_type!(BadState, "socket recv() failed"))?;
-            if !is_unspecified(remote_endpoint.addr) && remote_endpoint.addr != meta.endpoint.addr {
-                return Err(AxError::WouldBlock);
-            }
-            if remote_endpoint.port != 0 && remote_endpoint.port != meta.endpoint.port {
-                return Err(AxError::WouldBlock);
-            }
-            Ok(len)
-        })
-    }
-```
+[**send_to(buf: &[u8], remote_addr: SocketAddr) -> AxResult<usize>:**](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/udp.rs#L105)
+
+将数据发送到指定的远程地址。
+
+[**recv_from(buf: &mut [u8]) -> AxResult<(usize, SocketAddr)>:**](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/udp.rs#L114)
+
+从套接字接收数据，并返回读取的字节数以及数据的源地址。
+
+[**peek_from(buf: &mut [u8]) -> AxResult<(usize, SocketAddr)>:**](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/udp.rs#L123)
+
+类似 recv_from，但数据不会从接收队列中移除。
+
+[**send(buf: &[u8]) -> AxResult<usize>:**](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/udp.rs#L150)
+
+将数据发送到先前 connect 指定的远程地址。
+
+[**recv(buf: &mut [u8]) -> AxResult<usize>:**](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/udp.rs#L157)
+
+从先前 connect 指定的远程地址接收数据。
+
 ### 关闭:
-shutdown() -> AxResult: 关闭 UDP 套接字。
-```rust
-/// Close the socket.
-    pub fn shutdown(&self) -> AxResult {
-        SOCKET_SET.with_socket_mut::<udp::Socket, _, _>(self.handle, |socket| {
-            debug!("UDP socket {}: shutting down", self.handle);
-            socket.close();
-        });
-        SOCKET_SET.poll_interfaces();
-        Ok(())
-    }
-```
+[**shutdown() -> AxResult:**](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/udp.rs#L174) 
+
+调用SOCKET_SET获取socket可变引用 关闭 UDP 套接字。
+
 ### 非阻塞模式:
-is_nonblocking() -> bool: 检查套接字是否处于非阻塞模式。
-```rust
-/// Returns whether this socket is in nonblocking mode.
-    #[inline]
-    pub fn is_nonblocking(&self) -> bool {
-        self.nonblock.load(Ordering::Acquire)
-    }
-```
-set_nonblocking(nonblocking: bool): 设置套接字的非阻塞模式。
-```rust
-/// Moves this UDP socket into or out of nonblocking mode.
-    ///
-    /// This will result in `recv`, `recv_from`, `send`, and `send_to`
-    /// operations becoming nonblocking, i.e., immediately returning from their
-    /// calls. If the IO operation is successful, `Ok` is returned and no
-    /// further action is required. If the IO operation could not be completed
-    /// and needs to be retried, an error with kind
-    /// [`Err(WouldBlock)`](AxError::WouldBlock) is returned.
-    #[inline]
-    pub fn set_nonblocking(&self, nonblocking: bool) {
-        self.nonblock.store(nonblocking, Ordering::Release);
-    }
-```
-### 状态查询:
-local_addr() -> AxResult<SocketAddr>: 获取本地套接字地址。
-```rust
-/// Returns the local address and port, or
-    /// [`Err(NotConnected)`](AxError::NotConnected) if not connected.
-    pub fn local_addr(&self) -> AxResult<SocketAddr> {
-        match self.local_addr.try_read() {
-            Some(addr) => addr.map(into_core_sockaddr).ok_or(AxError::NotConnected),
-            None => Err(AxError::NotConnected),
-        }
-    }
-```
-peer_addr() -> AxResult<SocketAddr>: 获取（通过 connect 设置的）对端套接字地址。
-```rust
-/// Returns the remote address and port, or
-    /// [`Err(NotConnected)`](AxError::NotConnected) if not connected.
-    pub fn peer_addr(&self) -> AxResult<SocketAddr> {
-        self.remote_endpoint().map(into_core_sockaddr)
-    }
-```
-poll() -> AxResult<PollState>: 查询套接字的可读/可写状态。
-```rust
-/// Whether the socket is readable or writable.
-    pub fn poll(&self) -> AxResult<PollState> {
-        if self.local_addr.read().is_none() {
-            return Ok(PollState {
-                readable: false,
-                writable: false,
-            });
-        }
-        SOCKET_SET.with_socket_mut::<udp::Socket, _, _>(self.handle, |socket| {
-            Ok(PollState {
-                readable: socket.can_recv(),
-                writable: socket.can_send(),
-            })
-        })
-    }
-```
+[**is_nonblocking() -> bool:**](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/udp.rs#L55)
+
+检查套接字是否处于非阻塞模式。
+
+[**set_nonblocking(nonblocking: bool):**](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/udp.rs#L68) 
+
+设置套接字的非阻塞模式。受影响的函数很多，比如recv，recv_from,send,send_to。设置后会立刻返回一个结果，如果能立刻有结果会是ok()
+,其他的无论是没有结果还是结果需要等待都会产生error
+
+### 状态查询:(与TCP相同)
+[**local_addr() -> AxResult<SocketAddr>:**](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/udp.rs#L40) 
+
+获取本地套接字地址。
+
+[**peer_addr() -> AxResult<SocketAddr>:**](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/udp.rs#L49) 
+
+获取（通过 connect 设置的）对端套接字地址。
+
+[**poll() -> AxResult<PollState>:**](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/udp.rs#L184)
+
+查询套接字的可读/可写状态。
+
 ## DNS 解析
-dns_query(name: &str) -> AxResult<alloc::vec::Vec<IpAddr>>: 
+[**dns_query(name: &str) -> AxResult<alloc::vec::Vec<IpAddr>>:**](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/dns.rs#L87) 
+
 执行 DNS A 记录查询，将域名解析为一个或多个 IP 地址。并且内部创建一个临时的 DnsSocket，使用配置的 DNS 服务器 (默认为 "8.8.8.8") 进行查询。
+
+[**query(&self, name: &str, query_type: DnsQueryType) -> AxResult<Vec<IpAddr>>:**](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/dns.rs#L35)
+
+调用smoltcp的start_query()来创建dns请求，接下来错误处理，后面调用poll_interface()轮询等待结果
+
 ```rust
-// In dns.rs
-/// Public function for DNS query.
-pub fn dns_query(name: &str) -> AxResult<alloc::vec::Vec<IpAddr>> {
-    let socket = DnsSocket::new();
-    socket.query(name, DnsQueryType::A)
-}
-
-// DnsSocket::query is called internally by dns_query.
-// The DnsSocket struct and its methods:
-/*
-struct DnsSocket {
-    handle: Option<SocketHandle>,
-}
-
-impl DnsSocket {
-    #[allow(clippy::new_without_default)]
-    /// Creates a new DNS socket.
-    pub fn new() -> Self {
-        let socket = SocketSetWrapper::new_dns_socket();
-        let handle = Some(SOCKET_SET.add(socket));
-        Self { handle }
-    }
-
-    /// Query a address with given DNS query type.
-    pub fn query(&self, name: &str, query_type: DnsQueryType) -> AxResult<Vec<IpAddr>> {
-        // let local_addr = self.local_addr.unwrap_or_else(f);
-        let handle = self.handle.ok_or_else(|| ax_err_type!(InvalidInput))?;
-        let iface = &ETH0.iface;
-        let query_handle = SOCKET_SET
-            .with_socket_mut::<dns::Socket, _, _>(handle, |socket| {
-                socket.start_query(iface.lock().context(), name, query_type)
-            })
-            .map_err(|e| match e {
-                StartQueryError::NoFreeSlot => {
-                    ax_err_type!(ResourceBusy, "socket query() failed: no free slot")
-                }
-                StartQueryError::InvalidName => {
-                    ax_err_type!(InvalidInput, "socket query() failed: invalid name")
-                }
-                StartQueryError::NameTooLong => {
-                    ax_err_type!(InvalidInput, "socket query() failed: too long name")
-                }
-            })?;
-        loop {
-            SOCKET_SET.poll_interfaces();
-            match SOCKET_SET.with_socket_mut::<dns::Socket, _, _>(handle, |socket| {
-                socket.get_query_result(query_handle).map_err(|e| match e {
-                    GetQueryResultError::Pending => AxError::WouldBlock,
-                    GetQueryResultError::Failed => {
-                        ax_err_type!(ConnectionRefused, "socket query() failed")
-                    }
-                })
-            }) {
-                Ok(n) => {
-                    let mut res = Vec::with_capacity(n.capacity());
-                    for ip in n {
-                        res.push(into_core_ipaddr(ip))
-                    }
-                    return Ok(res);
-                }
-                Err(AxError::WouldBlock) => axtask::yield_now(),
-                Err(e) => return Err(e),
+pub fn query(&self, name: &str, query_type: DnsQueryType) -> AxResult<Vec<IpAddr>> {
+    /*
+    ...
+     */
+    let query_handle = SOCKET_SET
+        .with_socket_mut::<dns::Socket, _, _>(handle, |socket| {
+            socket.start_query(iface.lock().context(), name, query_type)
+        })
+        .map_err(|e| match e {
+            StartQueryError::NoFreeSlot => {
+                ax_err_type!(ResourceBusy, "socket query() failed: no free slot")
             }
-        }
+            StartQueryError::InvalidName => {
+                ax_err_type!(InvalidInput, "socket query() failed: invalid name")
+            }
+            StartQueryError::NameTooLong => {
+                ax_err_type!(InvalidInput, "socket query() failed: too long name")
+            }
+        })?;
+    loop {
+        SOCKET_SET.poll_interfaces();
+        /*
+        ...
+         */
     }
 }
-*/
+
 ```
 ## 网络栈轮询
-poll_interfaces()
-此函数应定期调用，以驱动网络栈处理。它会轮询网络接口，接收传入的数据包并将其分派给相应的套接字，同时发送套接字中排队等待传出的数据包。
-对于非阻塞操作，此函数的及时调用至关重要。
-```rust
-// In smoltcp_impl/mod.rs
-/// Poll the network stack.
-///
-/// It may receive packets from the NIC and process them, and transmit queued
-/// packets to the NIC.
-pub fn poll_interfaces() {
-    SOCKET_SET.poll_interfaces();
-}
+[**poll_interfaces()**](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/mod.rs#L305)
 
-// SocketSetWrapper::poll_interfaces method:
-// impl<'a> SocketSetWrapper<'a> {
-// ...
-//     pub fn poll_interfaces(&self) {
-//         ETH0.poll(&self.0);
-//     }
-// ...
-// }
+驱动网络栈处理。它会轮询网络接口，接收传入的数据包并将其分派给相应的套接字，同时发送套接字中排队等待传出的数据包。
+(前面block_on提及过)
 
-// InterfaceWrapper::poll method:
-// impl InterfaceWrapper {
-// ...
-//     pub fn poll(&self, sockets: &Mutex<SocketSet>) {
-//         let mut dev = self.dev.lock();
-//         let mut iface = self.iface.lock();
-//         let mut sockets = sockets.lock();
-//         let timestamp = Self::current_time();
-//         iface.poll(timestamp, dev.deref_mut(), &mut sockets);
-//     }
-// ...
-// }
-```
 ## 测试部分
-bench_transmit(): 测试底层网络设备的最大传输带宽。它会尽可能快地发送大量数据包。
+有两个网络测试函数，测试系统的数据发送/接收能力
+
+[**bench_transmit():**](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/mod.rs#L310) 
+
+测试底层网络设备的最大传输带宽。它会尽可能快地发送大量数据包。
+
+**实际内部的定义：**
 ```rust
-// In smoltcp_impl/mod.rs
-/// Benchmark raw socket transmit bandwidth.
-pub fn bench_transmit() {
-    ETH0.dev.lock().bench_transmit_bandwidth();
+impl DeviceWrapper {
+    pub fn bench_transmit_bandwidth(&mut self) {
+        // 10 Gb
+        const MAX_SEND_BYTES: usize = 10 * GB;
+        let mut send_bytes: usize = 0;
+        let mut past_send_bytes: usize = 0;
+        let mut past_time = InterfaceWrapper::current_time();
+
+        // Send bytes
+        while send_bytes < MAX_SEND_BYTES {
+            if let Some(tx_token) = self.transmit(InterfaceWrapper::current_time()) {
+                AxNetTxToken::consume(tx_token, STANDARD_MTU, |tx_buf| {
+                    tx_buf[0..12].fill(1);
+                    // ether type: IPv4
+                    tx_buf[12..14].copy_from_slice(&[0x08, 0x00]);
+                    tx_buf[14..STANDARD_MTU].fill(1);
+                });
+                send_bytes += STANDARD_MTU;
+            }
+
+            let current_time = InterfaceWrapper::current_time();
+            if (current_time - past_time).secs() == 1 {
+                let gb = ((send_bytes - past_send_bytes) * 8) / GB;
+                let mb = (((send_bytes - past_send_bytes) * 8) % GB) / MB;
+                let gib = (send_bytes - past_send_bytes) / GB;
+                let mib = ((send_bytes - past_send_bytes) % GB) / MB;
+                info!(
+                    "Transmit: {}.{:03}GBytes, Bandwidth: {}.{:03}Gbits/sec.",
+                    gib, mib, gb, mb
+                );
+                past_time = current_time;
+                past_send_bytes = send_bytes;
+            }
+        }
+    }
 }
-
-// The actual implementation is in bench.rs:
-// impl DeviceWrapper {
-//     pub fn bench_transmit_bandwidth(&mut self) {
-//         // 10 Gb
-//         const MAX_SEND_BYTES: usize = 10 * GB;
-//         let mut send_bytes: usize = 0;
-//         let mut past_send_bytes: usize = 0;
-//         let mut past_time = InterfaceWrapper::current_time();
-
-//         // Send bytes
-//         while send_bytes < MAX_SEND_BYTES {
-//             if let Some(tx_token) = self.transmit(InterfaceWrapper::current_time()) {
-//                 AxNetTxToken::consume(tx_token, STANDARD_MTU, |tx_buf| {
-//                     tx_buf[0..12].fill(1);
-//                     // ether type: IPv4
-//                     tx_buf[12..14].copy_from_slice(&[0x08, 0x00]);
-//                     tx_buf[14..STANDARD_MTU].fill(1);
-//                 });
-//                 send_bytes += STANDARD_MTU;
-//             }
-
-//             let current_time = InterfaceWrapper::current_time();
-//             if (current_time - past_time).secs() == 1 {
-//                 let gb = ((send_bytes - past_send_bytes) * 8) / GB;
-//                 let mb = (((send_bytes - past_send_bytes) * 8) % GB) / MB;
-//                 let gib = (send_bytes - past_send_bytes) / GB;
-//                 let mib = ((send_bytes - past_send_bytes) % GB) / MB;
-//                 info!(
-//                     "Transmit: {}.{:03}GBytes, Bandwidth: {}.{:03}Gbits/sec.",
-//                     gib, mib, gb, mb
-//                 );
-//                 past_time = current_time;
-//                 past_send_bytes = send_bytes;
-//             }
-//         }
-//     }
-// }
 ```
-bench_receive(): 测试底层网络设备的最大接收带宽。它会持续接收数据包并统计速率。
+
+
+[**bench_receive():**](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/mod.rs#L315) 
+
+测试底层网络设备的最大接收带宽。它会持续接收数据包并统计速率。
+
+**内部实际定义：**
 ```rust
-// In smoltcp_impl/mod.rs
-/// Benchmark raw socket receive bandwidth.
-pub fn bench_receive() {
-    ETH0.dev.lock().bench_receive_bandwidth();
+impl DeviceWrapper {
+    pub fn bench_receive_bandwidth(&mut self) {
+        // 10 Gb
+        const MAX_RECEIVE_BYTES: usize = 10 * GB;
+        let mut receive_bytes: usize = 0;
+        let mut past_receive_bytes: usize = 0;
+        let mut past_time = InterfaceWrapper::current_time();
+        // Receive bytes
+        while receive_bytes < MAX_RECEIVE_BYTES {
+            if let Some(rx_token) = self.receive(InterfaceWrapper::current_time()) {
+                AxNetRxToken::consume(rx_token.0, |rx_buf| {
+                    receive_bytes += rx_buf.len();
+                });
+            }
+
+            let current_time = InterfaceWrapper::current_time();
+            if (current_time - past_time).secs() == 1 {
+                let gb = ((receive_bytes - past_receive_bytes) * 8) / GB;
+                let mb = (((receive_bytes - past_receive_bytes) * 8) % GB) / MB;
+                let gib = (receive_bytes - past_receive_bytes) / GB;
+                let mib = ((receive_bytes - past_receive_bytes) % GB) / MB;
+                info!(
+                    "Receive: {}.{:03}GBytes, Bandwidth: {}.{:03}Gbits/sec.",
+                    gib, mib, gb, mb
+                );
+                past_time = current_time;
+                past_receive_bytes = receive_bytes;
+            }
+        }
+    }
 }
-
-// The actual implementation is in bench.rs:
-// impl DeviceWrapper {
-//     pub fn bench_receive_bandwidth(&mut self) {
-//         // 10 Gb
-//         const MAX_RECEIVE_BYTES: usize = 10 * GB;
-//         let mut receive_bytes: usize = 0;
-//         let mut past_receive_bytes: usize = 0;
-//         let mut past_time = InterfaceWrapper::current_time();
-//         // Receive bytes
-//         while receive_bytes < MAX_RECEIVE_BYTES {
-//             if let Some(rx_token) = self.receive(InterfaceWrapper::current_time()) {
-//                 AxNetRxToken::consume(rx_token.0, |rx_buf| {
-//                     receive_bytes += rx_buf.len();
-//                 });
-//             }
-
-//             let current_time = InterfaceWrapper::current_time();
-//             if (current_time - past_time).secs() == 1 {
-//                 let gb = ((receive_bytes - past_receive_bytes) * 8) / GB;
-//                 let mb = (((receive_bytes - past_receive_bytes) * 8) % GB) / MB;
-//                 let gib = (receive_bytes - past_receive_bytes) / GB;
-//                 let mib = ((receive_bytes - past_receive_bytes) % GB) / MB;
-//                 info!(
-//                     "Receive: {}.{:03}GBytes, Bandwidth: {}.{:03}Gbits/sec.",
-//                     gib, mib, gb, mb
-//                 );
-//                 past_time = current_time;
-//                 past_receive_bytes = receive_bytes;
-//             }
-//         }
-//     }
-// }
 ```
-这两个函数通常用于性能评估和调试。
 
 # 内部机制简介
-InterfaceWrapper (ETH0): 代表一个网络接口 (如 eth0)。它包装了 smoltcp::iface::Interface 和一个 DeviceWrapper。InterfaceWrapper 负责管理接口的 IP 配置、路由，并通过其 poll 方法驱动 smoltcp 的核心处理逻辑。
+## [**InterfaceWrapper (ETH0):**](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/mod.rs#L63) 
+
+代表一个网络接口 (如 eth0)。它包装了 smoltcp::iface::Interface 和一个 DeviceWrapper。InterfaceWrapper 负责管理接口的 IP 配置、路由，
+并通过其 poll 方法驱动 smoltcp 的核心处理逻辑。（前面block_on处一样，一路到iface的poll，这是iface上面最后一层）
+
 ```rust
 // In smoltcp_impl/mod.rs
 struct InterfaceWrapper {
@@ -700,33 +549,6 @@ struct InterfaceWrapper {
 // InterfaceWrapper::poll method:
 impl InterfaceWrapper {
 // ...
-    fn current_time() -> Instant {
-        Instant::from_micros_const((wall_time_nanos() / NANOS_PER_MICROS) as i64)
-    }
-
-    pub fn name(&self) -> &str {
-        self.name
-    }
-
-    pub fn ethernet_address(&self) -> EthernetAddress {
-        self.ether_addr
-    }
-
-    pub fn setup_ip_addr(&self, ip: IpAddress, prefix_len: u8) {
-        let mut iface = self.iface.lock();
-        iface.update_ip_addrs(|ip_addrs| {
-            ip_addrs.push(IpCidr::new(ip, prefix_len)).unwrap();
-        });
-    }
-
-    pub fn setup_gateway(&self, gateway: IpAddress) {
-        let mut iface = self.iface.lock();
-        match gateway {
-            IpAddress::Ipv4(v4) => iface.routes_mut().add_default_ipv4_route(v4).unwrap(),
-            _ => {None} // Or handle IPv6 if supported in future
-        };
-    }
-
     pub fn poll(&self, sockets: &Mutex<SocketSet>) {
         let mut dev = self.dev.lock();
         let mut iface = self.iface.lock();
@@ -737,355 +559,30 @@ impl InterfaceWrapper {
 // ...
 }
 ```
-DeviceWrapper: 对 axdriver::AxNetDevice（一个网络硬件驱动的抽象）的包装，实现了 smoltcp::phy::Device trait。它使得 smoltcp 可以通过标准接口与具体的网络硬件交互，进行数据包的收发。
-```rust
-// In smoltcp_impl/mod.rs
-struct DeviceWrapper {
-    inner: RefCell<AxNetDevice>, // use `RefCell` is enough since it's wrapped in `Mutex` in `InterfaceWrapper`.
-}
 
-impl DeviceWrapper {
-    fn new(inner: AxNetDevice) -> Self {
-        Self {
-            inner: RefCell::new(inner),
-        }
-    }
-}
 
-// impl smoltcp::phy::Device for DeviceWrapper
-impl Device for DeviceWrapper {
-    type RxToken<'a>
-        = AxNetRxToken<'a>
-    where
-        Self: 'a;
-    type TxToken<'a>
-        = AxNetTxToken<'a>
-    where
-        Self: 'a;
+## [**DeviceWrapper:**](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/mod.rs#L59) 
+对 axdriver::AxNetDevice（一个网络硬件驱动的抽象）的包装，实现了 smoltcp::phy::Device trait。它使得 smoltcp 可以通过标准接口与具体的网络硬件交互，
+进行数据包的收发。
 
-    fn receive(&mut self, _timestamp: Instant) -> Option<(Self::RxToken<'_>, Self::TxToken<'_>)> {
-        let mut dev = self.inner.borrow_mut();
-        if let Err(e) = dev.recycle_tx_buffers() {
-            warn!("recycle_tx_buffers failed: {:?}", e);
-            return None;
-        }
+## [**SocketSetWrapper (SOCKET_SET):**](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/mod.rs#L57) 
 
-        if !dev.can_transmit() {
-            // If we can't transmit, smoltcp expects to still be able to receive.
-            // However, our AxNetDevice model might imply that if tx is blocked,
-            // rx might also be affected or that we need a tx token to unlock hw.
-            // For now, we proceed to try receiving.
-            // This behavior might need adjustment based on specific driver semantics.
-        }
-        let rx_buf = match dev.receive() {
-            Ok(buf) => buf,
-            Err(err) => {
-                if !matches!(err, DevError::Again) {
-                    warn!("receive failed: {:?}", err);
-                }
-                return None;
-            }
-        };
-        // Ensure we can provide a TxToken. If not, we can't accept the RxToken.
-        if !dev.can_transmit() {
-             // This case needs careful handling. Smoltcp expects both if Rx is returned.
-             // If we cannot guarantee a TxToken, we should not return an RxToken.
-             // For now, assuming `can_transmit` check at start is enough or TxToken can always be created.
-             // A more robust way might be to try to get a TxToken first.
-            warn!("Cannot provide TxToken after receiving, may lead to issues.");
-            // Depending on strictness, one might drop rx_buf and return None.
-            // self.inner.borrow_mut().recycle_rx_buffer(rx_buf).ok(); // example of dropping
-            // return None;
-        }
-        Some((AxNetRxToken(&self.inner, rx_buf), AxNetTxToken(&self.inner)))
-    }
+包装了 smoltcp::iface::SocketSet，并使用 Mutex 进行同步。SocketSet 是 smoltcp 中管理所有活动套接字的容器。SocketSetWrapper 
+提供了创建和管理 TCP、UDP、DNS 套接字的辅助方法。
 
-    fn transmit(&mut self, _timestamp: Instant) -> Option<Self::TxToken<'_>> {
-        let mut dev = self.inner.borrow_mut();
-        if let Err(e) = dev.recycle_tx_buffers() {
-            warn!("recycle_tx_buffers failed: {:?}", e);
-            return None;
-        }
-        if dev.can_transmit() {
-            Some(AxNetTxToken(&self.inner))
-        } else {
-            None
-        }
-    }
+## [**ListenTable (LISTEN_TABLE):**](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/listen_table.rs#L44) 
 
-    fn capabilities(&self) -> DeviceCapabilities {
-        let mut caps = DeviceCapabilities::default();
-        caps.max_transmission_unit = STANDARD_MTU; // Typically 1500 for Ethernet, but check NIC driver
-        caps.max_burst_size = None;
-        caps.medium = Medium::Ethernet;
-        // Add other capabilities like checksum offloading if supported by AxNetDevice and smoltcp
-        // caps.checksum.ipv4 = Checksum::Tx;
-        // caps.checksum.tcp = Checksum::Tx;
-        // caps.checksum.udp = Checksum::Tx;
-        caps
-    }
-}
-```
-SocketSetWrapper (SOCKET_SET): 包装了 smoltcp::iface::SocketSet，并使用 Mutex 进行同步。SocketSet 是 smoltcp 中管理所有活动套接字的容器。SocketSetWrapper 提供了创建和管理 TCP、UDP、DNS 套接字的辅助方法。
-```rust
-// In smoltcp_impl/mod.rs
-struct SocketSetWrapper<'a>(Mutex<SocketSet<'a>>);
+专门为 TCP 服务器设计。当一个 TCP 套接字进入监听状态时，它会在 ListenTable 中注册。ListenTable 维护一个按端口号索引的表，
+每个条目包含一个监听端点和已接收但尚未被 accept 的 SYN 包队列 (半连接队列)。
 
-impl<'a> SocketSetWrapper<'a> {
-    fn new() -> Self {
-        Self(Mutex::new(SocketSet::new(vec![])))
-    }
 
-    pub fn new_tcp_socket() -> socket::tcp::Socket<'a> {
-        let tcp_rx_buffer = socket::tcp::SocketBuffer::new(vec![0; TCP_RX_BUF_LEN]);
-        let tcp_tx_buffer = socket::tcp::SocketBuffer::new(vec![0; TCP_TX_BUF_LEN]);
-        socket::tcp::Socket::new(tcp_rx_buffer, tcp_tx_buffer)
-    }
+[**snoop_tcp_packet(buf: &[u8], sockets: &mut SocketSet<'_>) -> Result<(), smoltcp::wire::Error>**](https://github.com/arceos-org/arceos/blob/e3ab0a26483ce042b43947ec7d455b08145ea35e/modules/axnet/src/smoltcp_impl/mod.rs#L282)
 
-    pub fn new_udp_socket() -> socket::udp::Socket<'a> {
-        let udp_rx_buffer = socket::udp::PacketBuffer::new(
-            vec![socket::udp::PacketMetadata::EMPTY; 8], // Assuming 8 packet slots for rx metadata
-            vec![0; UDP_RX_BUF_LEN],
-        );
-        let udp_tx_buffer = socket::udp::PacketBuffer::new(
-            vec![socket::udp::PacketMetadata::EMPTY; 8], // Assuming 8 packet slots for tx metadata
-            vec![0; UDP_TX_BUF_LEN],
-        );
-        socket::udp::Socket::new(udp_rx_buffer, udp_tx_buffer)
-    }
-
-    pub fn new_dns_socket() -> socket::dns::Socket<'a> {
-        // Consider making DNS_SEVER parsing more robust or configurable at runtime
-        let server_addr_str = DNS_SEVER; // e.g. "8.8.8.8"
-        let server_addr: IpAddress = server_addr_str.parse().expect("Invalid DNS server address in config");
-        // DNS socket requires a list of name servers and a buffer for queries.
-        // The query buffer size might need to be configurable or dynamically sized.
-        // For now, an empty vec![] for query data buffer might be problematic for actual queries.
-        // Smoltcp's DnsSocket usually expects a buffer to store query data.
-        // Example: vec![0u8; 512] for query data.
-        // Let's assume the vec![] is a placeholder or smoltcp handles internal allocation.
-        // However, typical smoltcp dns::Socket::new takes &mut [DnsQuery] or similar for query storage.
-        // The current signature socket::dns::Socket::new(&[server_addr], vec![]) might imply
-        // the second vec is for a different purpose or the API changed.
-        // Checking smoltcp docs: `dns::Socket::new` takes `&[IpAddress]` and `Vec<Option<DnsQuery>>`
-        // or similar for query slots. So `vec![]` means no query slots initially? This seems odd.
-        // The current code uses `vec![]` which according to smoltcp (0.10 or 0.11)
-        // `Socket::new(servers: &[IpAddress], local_address: IpAddress, queries_storage: Vec<Option<QueryHandle>>)`
-        // The provided code is `socket::dns::Socket::new(&[server_addr], vec![])`
-        // This looks like it's passing an empty vec for `queries_storage`.
-        // This would mean it cannot make any queries unless it can grow this storage.
-        // Let's use the code as provided.
-        socket::dns::Socket::new(&[server_addr], vec![])
-    }
-
-    pub fn add<T: AnySocket<'a>>(&self, socket: T) -> SocketHandle {
-        let handle = self.0.lock().add(socket);
-        debug!("socket {}: created", handle);
-        handle
-    }
-
-    // For with_socket and with_socket_mut, ensure <T: AnySocket<'a>> is appropriate
-    // or specify the exact socket type if known and fixed.
-    pub fn with_socket<T: AnySocket<'a>, R, F>(&self, handle: SocketHandle, f: F) -> R
-    where
-        F: FnOnce(&T) -> R,
-    {
-        let set = self.0.lock();
-        let socket: &T = set.get(handle); // This get needs to be type-safe.
-                                          // Smoltcp's SocketSet::get returns &dyn AnySocket.
-                                          // To get a concrete type &T, downcasting is needed.
-                                          // e.g. socket.downcast_ref::<T>().unwrap()
-                                          // The current code `let socket = set.get(handle); f(socket)` implies
-                                          // that `set.get::<T>(handle)` is available or `AnySocket` works with `f`.
-                                          // Assuming `SocketSet::get` is specialized or T is `dyn AnySocket`.
-                                          // Given `T: AnySocket<'a>`, this is likely:
-                                          // `let socket: &T = set.get::<T>(handle);` or similar.
-                                          // Or `f` expects `&dyn AnySocket`.
-                                          // The code `set.get(handle)` returns `&mut S` where S is the socket type.
-                                          // This should be `set.get::<T>(handle)`
-        let socket = set.get::<T>(handle); // Corrected based on smoltcp typical usage
-        f(socket)
-    }
-
-    pub fn with_socket_mut<T: AnySocket<'a>, R, F>(&self, handle: SocketHandle, f: F) -> R
-    where
-        F: FnOnce(&mut T) -> R,
-    {
-        let mut set = self.0.lock();
-        let socket: &mut T = set.get_mut::<T>(handle); // Corrected
-        f(socket)
-    }
-
-    pub fn poll_interfaces(&self) {
-        ETH0.poll(&self.0);
-    }
-
-    pub fn remove(&self, handle: SocketHandle) {
-        self.0.lock().remove(handle);
-        debug!("socket {}: destroyed", handle);
-    }
-}
-```
-ListenTable (LISTEN_TABLE): 专门为 TCP 服务器设计。当一个 TCP 套接字进入监听状态时，它会在 ListenTable 中注册。ListenTable 维护一个按端口号索引的表，每个条目包含一个监听端点和已接收但尚未被 accept 的 SYN 包队列 (半连接队列)。
-```rust
-// In listen_table.rs
-pub struct ListenTable {
-    tcp: Box<[Mutex<Option<Box<ListenTableEntry>>>]>,
-}
-
-struct ListenTableEntry {
-    listen_endpoint: IpListenEndpoint,
-    syn_queue: VecDeque<SocketHandle>,
-}
-
-impl ListenTable {
-    pub fn new() -> Self {
-        let tcp = unsafe {
-            let mut buf = Box::new_uninit_slice(PORT_NUM);
-            for i in 0..PORT_NUM {
-                buf[i].write(Mutex::new(None));
-            }
-            buf.assume_init()
-        };
-        Self { tcp }
-    }
-    // ... other methods like listen, unlisten, accept ...
-
-    pub fn incoming_tcp_packet(
-        &self,
-        src: IpEndpoint,
-        dst: IpEndpoint,
-        sockets: &mut SocketSet<'_>, // Note: Takes &mut SocketSet here
-    ) {
-        if let Some(entry) = self.tcp[dst.port as usize].lock().deref_mut() {
-            if !entry.can_accept(dst.addr) {
-                // not listening on this address
-                return;
-            }
-            if entry.syn_queue.len() >= LISTEN_QUEUE_SIZE {
-                // SYN queue is full, drop the packet
-                warn!("SYN queue overflow!");
-                return;
-            }
-            // Create a new TCP socket for the incoming connection
-            let mut socket = SocketSetWrapper::new_tcp_socket(); // This creates a smoltcp socket
-            // Attempt to transition the new socket to Listen state for the specific endpoint.
-            // This prepares it to handle the incoming SYN.
-            if socket.listen(entry.listen_endpoint).is_ok() {
-                // Add the newly configured listening socket to the global socket set
-                let handle = sockets.add(socket);
-                debug!(
-                    "TCP socket {}: prepare for connection {} -> {}",
-                    handle, src, entry.listen_endpoint
-                );
-                // Add the handle of this new socket (which is now in Listen state for this specific flow)
-                // to the SYN queue of the original listening port.
-                // This handle will be picked up by `accept()`.
-                entry.syn_queue.push_back(handle);
-
-                // At this point, smoltcp's processing of the actual SYN packet
-                // (which happens after snoop_tcp_packet returns and the packet is passed to Interface::poll)
-                // will find this socket (handle) in the SocketSet, see it's listening on the correct endpoint,
-                // and transition it to SYN_RCVD.
-            } else {
-                // This case should be rare if listen_endpoint is valid.
-                // Could happen if the listen_endpoint is somehow invalid for a new socket (e.g. address conflict internally)
-                // or if the socket is in a state that doesn't allow listening (e.g. already connected - not possible for new_tcp_socket).
-                warn!(
-                    "Failed to make new TCP socket listen on {:?} for incoming packet from {}",
-                    entry.listen_endpoint, src
-                );
-            }
-        }
-        // If there's no entry for dst.port, the packet is ignored (no listener on that port).
-    }
-}
-```
 当新的 TCP SYN 包到达时，snoop_tcp_packet 函数（在 smoltcp_impl/mod.rs 中）会通知 ListenTable 处理。
-```rust
-// In smoltcp_impl/mod.rs
-fn snoop_tcp_packet(buf: &[u8], sockets: &mut SocketSet<'_>) -> Result<(), smoltcp::wire::Error> {
-    use smoltcp::wire::{EthernetFrame, IpProtocol, Ipv4Packet, TcpPacket};
 
-    let ether_frame = EthernetFrame::new_checked(buf)?;
-    // Assuming IPv4 here. Add IPv6 handling if needed.
-    let ipv4_packet = Ipv4Packet::new_checked(ether_frame.payload())?;
+## 地址转换 (addr.rs): 
 
-    if ipv4_packet.next_header() == IpProtocol::Tcp {
-        let tcp_packet = TcpPacket::new_checked(ipv4_packet.payload())?;
-        let src_addr = IpEndpoint::new(
-            IpAddress::Ipv4(ipv4_packet.src_addr()),
-            tcp_packet.src_port(),
-        );
-        let dst_addr = IpEndpoint::new(
-            IpAddress::Ipv4(ipv4_packet.dst_addr()),
-            tcp_packet.dst_port(),
-        );
-        // is_first: SYN is set, ACK is not set. This indicates the first packet of a TCP handshake (SYN).
-        let is_first = tcp_packet.syn() && !tcp_packet.ack();
-        if is_first {
-            // If it's a SYN packet, inform the LISTEN_TABLE.
-            // LISTEN_TABLE will then check if any server socket is listening on dst_addr.
-            // If yes, it will create a new socket, put it in LISTEN state for this specific flow,
-            // add it to the `sockets` set, and queue its handle.
-            // The actual SYN processing (transition to SYN_RCVD) happens when smoltcp's main poll loop
-            // processes this packet for the newly created socket.
-            LISTEN_TABLE.incoming_tcp_packet(src_addr, dst_addr, sockets);
-        }
-    }
-    Ok(())
-}
-```
-地址转换 (addr.rs): 提供了一系列 const fn 函数，用于在 ArceOS 标准库的地址类型 (core::net::IpAddr, core::net::SocketAddr) 和 
-smoltcp 的地址类型 (smoltcp::wire::IpAddress, smoltcp::wire::IpEndpoint) 之间进行转换。目前主要支持 IPv4。
-```rust
-// In addr.rs
-use core::net::{IpAddr, Ipv4Addr, SocketAddr};
-use smoltcp::wire::{IpAddress, IpEndpoint, Ipv4Address};
+提供了一系列 const fn 函数，用于在 ArceOS 标准库的地址类型 (core::net::IpAddr, core::net::SocketAddr) 和 
+smoltcp 的地址类型 (smoltcp::wire::IpAddress, smoltcp::wire::IpEndpoint) 之间进行转换。(目前主要支持 IPv4。IPV6支持正在添加中)
 
-pub const fn from_core_ipaddr(ip: IpAddr) -> IpAddress {
-    match ip {
-        IpAddr::V4(ipv4) => IpAddress::Ipv4(Ipv4Address(ipv4.octets())),
-        _ => panic!("IPv6 not supported"),
-    }
-}
 
-pub const fn into_core_ipaddr(ip: IpAddress) -> IpAddr {
-    match ip {
-        IpAddress::Ipv4(ipv4) => {
-            // SAFETY: Transmuting [u8; 4] to Ipv4Addr is safe as Ipv4Addr is often a newtype over [u8; 4]
-            // or has a compatible representation. This relies on the internal structure of core::net::Ipv4Addr.
-            // A safer way would be `Ipv4Addr::new(ipv4.0[0], ipv4.0[1], ipv4.0[2], ipv4.0[3])`
-            // if `transmute` is considered too risky or internal layouts change.
-            // However, `ipv4.octets()` already returns `[u8; 4]`.
-            // `Ipv4Addr::from(ipv4.0)` is the idiomatic way if Ipv4Addr implements `From<[u8; 4]>`.
-            // Let's assume `core::mem::transmute` is used due to `const fn` requirements or specific optimizations.
-            IpAddr::V4(unsafe { core::mem::transmute::<[u8; 4], Ipv4Addr>(ipv4.0) })
-        }
-        _ => panic!("IPv6 not supported"),
-    }
-}
-
-pub const fn from_core_sockaddr(addr: SocketAddr) -> IpEndpoint {
-    IpEndpoint {
-        addr: from_core_ipaddr(addr.ip()),
-        port: addr.port(),
-    }
-}
-
-pub const fn into_core_sockaddr(addr: IpEndpoint) -> SocketAddr {
-    SocketAddr::new(into_core_ipaddr(addr.addr), addr.port)
-}
-
-pub fn is_unspecified(ip: IpAddress) -> bool {
-    // For IPv4, unspecified is 0.0.0.0
-    // For IPv6, unspecified is ::
-    // IpAddress::is_unspecified() can be used if available and covers both.
-    // The current code checks against [0,0,0,0] which is specific to IPv4.
-    ip.as_bytes() == [0, 0, 0, 0] // This is fine for IPv4 only context
-    // A more general `ip.is_unspecified()` would be better if mixed v4/v6.
-}
-
-pub const UNSPECIFIED_IP: IpAddress = IpAddress::v4(0, 0, 0, 0);
-pub const UNSPECIFIED_ENDPOINT: IpEndpoint = IpEndpoint::new(UNSPECIFIED_IP, 0);
-```
