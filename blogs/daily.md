@@ -149,7 +149,22 @@ query 这里没有完全异步，如异，这里可以返回future。还有就�
 今天是组会汇报，接下来要进行文档的更改和smoltcp的升级
 
 ## 6.8
-文档更该
+[文档更改结束]()，转入smoltcp
 
 ## 6.9
+
+## 6.10
+
+## 6.11
+smoltcp两边的差异真的大
+
+## 6.12
+与孙思源学姐交流一番，查看了一下starry-os以及iprf
+
+## 6.13
+对于axnet适配最新smoltcp的更改，发现了smoltcp的适配性问题,smoltcp的链接里没有监听套接字，axnet对此设计了监听套接字，并修改smoltcp的poll流程
+，开放一个preprocess用来作为服务端，为此设计了listen_table。现在smoltcp内部自己封装了这些东西，所以listen_table.rs可能就可以删了。
+
+
+## 6.14
 
