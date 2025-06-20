@@ -165,7 +165,7 @@ smoltcp 整合完毕，axnet整合完毕，通过所有检测。pr链接已经�
 ## 6.17
 pr整理完毕
 ## 6.18
-尝试实现简单的异步运行时，详细参见[文档]()
+尝试实现简单的异步运行时，详细参见[文档](https://github.com/a6d9a6m/my_async/blob/main/blogs/%E7%AE%80%E5%8D%95%E5%BC%82%E6%AD%A5%E8%BF%90%E8%A1%8C%E6%97%B6%E5%AE%9E%E7%8E%B0.md)
 ## 6.19
-实现完毕，简单实现的[文档]()也在本仓库中。
+实现完毕，简单实现的[文档](https://github.com/a6d9a6m/my_async/blob/main/blogs/%E7%AE%80%E5%8D%95%E5%BC%82%E6%AD%A5%E8%BF%90%E8%A1%8C%E6%97%B6%E5%AE%9E%E7%8E%B0.md)(还是之前那个)也在本仓库中。
 
