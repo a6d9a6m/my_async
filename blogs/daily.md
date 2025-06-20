@@ -147,18 +147,25 @@ query 这里没有完全异步，如异，这里可以返回future。还有就�
 今天是组会汇报，接下来要进行文档的更改和smoltcp的升级
 
 ## 6.8
-[文档更改结束]()，转入smoltcp
+[文档更改结束](https://github.com/a6d9a6m/my_async/blob/main/blogs/axnet.md)，转入smoltcp
 
 ## 6.11
 smoltcp两边的差异真的大
 
 ## 6.12
 与孙思源学姐交流一番，查看了一下starry-os以及iprf
-
 ## 6.13
 对于axnet适配最新smoltcp的更改，发现了smoltcp的适配性问题,smoltcp的链接里没有监听套接字，axnet对此设计了监听套接字，并修改smoltcp的poll流程
 ，开放一个preprocess用来作为服务端，为此设计了listen_table。现在smoltcp内部自己封装了这些东西，所以listen_table.rs可能就可以删了。
-
-
-## 6.14
+## 6.15
+axnet升级结束，最终选择升级是smoltcp依赖，在新的poll中添加回支持snoop_loop的钩子方法。
+更新训练营smoltcp，让其能跟上最新的仓库进展，发现它有了新的测试，并且有一些依赖调用不同
+## 6.16
+smoltcp 整合完毕，axnet整合完毕，通过所有检测。pr链接已经写到crate任务分配文档里面了
+## 6.17
+pr整理完毕
+## 6.18
+尝试实现简单的异步运行时，详细参见[文档]()
+## 6.19
+实现完毕，简单实现的[文档]()也在本仓库中。
 
