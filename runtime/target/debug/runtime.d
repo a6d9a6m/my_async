@@ -1,1 +1,1 @@
-D:\CCY\Code\Rust\runtime\target\debug\runtime.exe: D:\CCY\Code\Rust\runtime\src\main.rs D:\CCY\Code\Rust\runtime\src\my_future.rs
+/home/littlesand/Rust/oscamp/part4/my_async/runtime/target/debug/runtime: /home/littlesand/Rust/oscamp/part4/my_async/runtime/src/main.rs /home/littlesand/Rust/oscamp/part4/my_async/runtime/src/my_future.rs

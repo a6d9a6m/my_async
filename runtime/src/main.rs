@@ -2,7 +2,6 @@ mod my_future;
 
 extern crate futures;
 
-use std::future::Future;
 use std::time::Duration;
 use crate::my_future::{new_executor_and_spawner, TimerFuture};
 
